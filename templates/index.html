@@ -170,6 +170,8 @@ const urlInput = document.getElementById("urlInput")
 const searchInput = document.getElementById("searchInput")
 
 let allSongs = []
+let queue = []
+let currentIndex = -1
 
 // ======================================
 // LOAD SONGS
@@ -226,15 +228,10 @@ function renderSongs(songs) {
 
         div.onclick = () => {
 
-            player.src = `/api/stream/${song.id}`
+            queue = allSongs
+            currentIndex = queue.findIndex(s => s.id === song.id)
 
-            player.play()
-
-            playerTitle.innerText = song.title
-
-            playerUploader.innerText = song.uploader || "-"
-
-            playerThumbnail.src = song.thumbnail_url
+            playCurrent()
         }
 
         songsContainer.appendChild(div)
@@ -291,6 +288,28 @@ downloadForm.addEventListener("submit", async (e) => {
         loader.classList.add("hidden")
 
     }, 10000)
+})
+
+function playCurrent() {
+
+    const song = queue[currentIndex]
+
+    if (!song) return
+
+    player.src = `/api/stream/${song.id}`
+    player.play()
+
+    playerTitle.innerText = song.title
+    playerUploader.innerText = song.uploader || "-"
+    playerThumbnail.src = song.thumbnail_url
+}
+
+player.addEventListener("ended", () => {
+
+    if (currentIndex < queue.length - 1) {
+        currentIndex++
+        playCurrent()
+    }
 })
 
 // ======================================
