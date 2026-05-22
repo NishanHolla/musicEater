@@ -1,37 +1,293 @@
+<!-- templates/index.html -->
+
 <!DOCTYPE html>
 <html>
+
 <head>
-    <title>Music Downloader</title>
+    <title>musicEater</title>
+
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-zinc-900 text-white min-h-screen flex items-center justify-center">
 
-<div class="bg-zinc-800 p-8 rounded-2xl w-full max-w-xl">
+<body class="bg-zinc-950 text-white min-h-screen">
 
-    <h1 class="text-3xl font-bold mb-6 text-center">
-        Music Downloader
-    </h1>
+    <!-- NAVBAR -->
+    <nav class="border-b border-zinc-800 bg-zinc-900 sticky top-0 z-50">
 
-    <form action="/download" method="POST" class="space-y-4">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center gap-4">
 
-        <input
-            type="text"
-            name="url"
-            placeholder="Paste YouTube video or playlist URL"
-            required
-            class="w-full p-4 rounded-xl bg-zinc-700 border border-zinc-600"
-        >
+            <h1 class="text-3xl font-bold">
+                musicEater
+            </h1>
 
-        <button
-            type="submit"
-            class="w-full bg-blue-600 hover:bg-blue-700 p-4 rounded-xl font-semibold"
-        >
-            Download
-        </button>
+            <!-- SEARCH -->
+            <input
+                type="text"
+                id="searchInput"
+                placeholder="Search songs..."
+                class="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 outline-none"
+            >
 
-    </form>
+            <!-- DOWNLOAD FORM -->
+            <form
+                id="downloadForm"
+                class="flex gap-3"
+            >
 
-</div>
+                <input
+                    type="text"
+                    id="urlInput"
+                    placeholder="Paste YouTube URL"
+                    required
+                    class="w-[400px] bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 outline-none"
+                >
+
+                <button
+                    type="submit"
+                    class="bg-blue-600 hover:bg-blue-700 px-5 py-3 rounded-xl font-semibold"
+                >
+                    Download
+                </button>
+
+            </form>
+
+        </div>
+
+    </nav>
+
+    <!-- DOWNLOAD LOADER -->
+    <div
+        id="loader"
+        class="hidden fixed top-5 right-5 bg-zinc-900 border border-zinc-700 px-5 py-4 rounded-2xl shadow-2xl z-50"
+    >
+
+        <div class="flex items-center gap-4">
+
+            <div class="animate-spin rounded-full h-6 w-6 border-4 border-zinc-600 border-t-white"></div>
+
+            <div>
+                <h2 class="font-semibold">
+                    Downloading...
+                </h2>
+
+                <p class="text-sm text-zinc-400">
+                    Your songs will appear automatically
+                </p>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- SONGS -->
+    <div
+        id="songs"
+        class="max-w-7xl mx-auto p-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-40"
+    >
+
+    </div>
+
+    <!-- PLAYER -->
+    <div class="fixed bottom-0 left-0 right-0 bg-zinc-900 border-t border-zinc-800 p-4">
+
+        <div class="max-w-7xl mx-auto">
+
+            <div class="flex items-center gap-4">
+
+                <img
+                    id="playerThumbnail"
+                    src=""
+                    class="w-16 h-16 rounded-xl object-cover bg-zinc-800"
+                >
+
+                <div class="flex-1">
+
+                    <h2
+                        id="playerTitle"
+                        class="font-semibold text-lg"
+                    >
+                        No song selected
+                    </h2>
+
+                    <p
+                        id="playerUploader"
+                        class="text-zinc-400"
+                    >
+                        -
+                    </p>
+
+                </div>
+
+            </div>
+
+            <audio
+                id="audioPlayer"
+                controls
+                class="w-full mt-4"
+            ></audio>
+
+        </div>
+
+    </div>
+
+<script>
+
+const songsContainer = document.getElementById("songs")
+
+const player = document.getElementById("audioPlayer")
+
+const playerTitle = document.getElementById("playerTitle")
+
+const playerUploader = document.getElementById("playerUploader")
+
+const playerThumbnail = document.getElementById("playerThumbnail")
+
+const loader = document.getElementById("loader")
+
+const downloadForm = document.getElementById("downloadForm")
+
+const urlInput = document.getElementById("urlInput")
+
+const searchInput = document.getElementById("searchInput")
+
+let allSongs = []
+
+// ======================================
+// LOAD SONGS
+// ======================================
+
+async function loadSongs() {
+
+    const response = await fetch("/api/songs")
+
+    const songs = await response.json()
+
+    allSongs = songs
+
+    renderSongs(songs)
+}
+
+// ======================================
+// RENDER SONGS
+// ======================================
+
+function renderSongs(songs) {
+
+    songsContainer.innerHTML = ""
+
+    songs.forEach(song => {
+
+        const div = document.createElement("div")
+
+        div.className =
+            "bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex items-center gap-4 hover:bg-zinc-800 cursor-pointer transition"
+
+        div.innerHTML = `
+            <img
+                src="${song.thumbnail_url}"
+                class="w-20 h-20 rounded-xl object-cover"
+            >
+
+            <div class="flex-1">
+                <h2 class="font-semibold text-lg">
+                    ${song.title}
+                </h2>
+
+                <p class="text-zinc-400">
+                    ${song.uploader || "Unknown"}
+                </p>
+            </div>
+
+            <button
+                class="bg-green-600 hover:bg-green-700 px-5 py-2 rounded-xl font-semibold"
+            >
+                Play
+            </button>
+        `
+
+        div.onclick = () => {
+
+            player.src = `/api/stream/${song.id}`
+
+            player.play()
+
+            playerTitle.innerText = song.title
+
+            playerUploader.innerText = song.uploader || "-"
+
+            playerThumbnail.src = song.thumbnail_url
+        }
+
+        songsContainer.appendChild(div)
+    })
+}
+
+// ======================================
+// SEARCH
+// ======================================
+
+searchInput.addEventListener("input", () => {
+
+    const value = searchInput.value.toLowerCase()
+
+    const filtered = allSongs.filter(song => {
+
+        return (
+            song.title.toLowerCase().includes(value) ||
+            (song.uploader || "").toLowerCase().includes(value)
+        )
+    })
+
+    renderSongs(filtered)
+})
+
+// ======================================
+// DOWNLOAD
+// ======================================
+
+downloadForm.addEventListener("submit", async (e) => {
+
+    e.preventDefault()
+
+    const url = urlInput.value
+
+    if (!url)
+        return
+
+    loader.classList.remove("hidden")
+
+    const formData = new FormData()
+
+    formData.append("url", url)
+
+    await fetch("/download", {
+        method: "POST",
+        body: formData
+    })
+
+    urlInput.value = ""
+
+    // Hide after some time
+    setTimeout(() => {
+
+        loader.classList.add("hidden")
+
+    }, 10000)
+})
+
+// ======================================
+// AUTO REFRESH
+// ======================================
+
+setInterval(loadSongs, 5000)
+
+// ======================================
+// INITIAL LOAD
+// ======================================
+
+loadSongs()
+
+</script>
 
 </body>
 </html>
