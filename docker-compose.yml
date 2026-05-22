@@ -1,0 +1,44 @@
+services:
+  # --- INFRASTRUCTURE: DB & STORAGE ---
+  postgres:
+    image: postgres:16
+    hostname: postgres
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: outbox_demo
+      # Set wal_level to logical to support logical decoding for Debezium
+#      POSTGRES_INITDB_ARGS: "--wal_level=logical"
+    command: ["postgres", "-c", "wal_level=logical"]
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - data-tier
+
+networks:
+  data-tier:
+    driver: bridge
+
+volumes:
+  minio_data:
+  postgres-data:

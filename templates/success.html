@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Download Started</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body
+    class="bg-zinc-900 text-white min-h-screen flex items-center justify-center"
+  >
+    <div class="bg-zinc-800 p-10 rounded-2xl shadow-xl text-center max-w-lg">
+      <h1 class="text-3xl font-bold mb-4 text-green-400">Download Started</h1>
+
+      <p class="text-zinc-300 mb-6">
+        Your download has started in the background.
+      </p>
+
+      <div class="bg-zinc-700 p-4 rounded-xl text-left break-all mb-6">
+        {{ query }}
+      </div>
+
+      <a
+        href="/"
+        class="inline-block bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-xl font-semibold"
+      >
+        Download More
+      </a>
+    </div>
+  </body>
+</html>
