@@ -4,34 +4,44 @@
 <html>
 
 <head>
+
     <title>musicEater</title>
 
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <script src="https://cdn.tailwindcss.com"></script>
+
 </head>
 
-<body class="bg-zinc-950 text-white min-h-screen">
+<body class="bg-zinc-950 text-white min-h-screen overflow-x-hidden">
 
     <!-- NAVBAR -->
-    <nav class="border-b border-zinc-800 bg-zinc-900 sticky top-0 z-50">
 
-        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center gap-4">
+    <nav class="border-b border-zinc-800 bg-zinc-900 sticky top-0 z-50 backdrop-blur">
 
-            <h1 class="text-3xl font-bold">
-                musicEater
-            </h1>
+        <div class="max-w-7xl mx-auto px-3 md:px-5 py-4 flex flex-col gap-3">
+
+            <!-- TOP ROW -->
+            <div class="flex items-center justify-between gap-3">
+
+                <h1 class="text-2xl md:text-3xl font-bold shrink-0">
+                    musicEater
+                </h1>
+
+            </div>
 
             <!-- SEARCH -->
             <input
                 type="text"
                 id="searchInput"
                 placeholder="Search songs..."
-                class="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 outline-none"
+                class="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 outline-none text-sm md:text-base"
             >
 
-            <!-- DOWNLOAD FORM -->
+            <!-- DOWNLOAD -->
             <form
                 id="downloadForm"
-                class="flex gap-3"
+                class="flex flex-col md:flex-row gap-3"
             >
 
                 <input
@@ -39,14 +49,14 @@
                     id="urlInput"
                     placeholder="Paste YouTube URL"
                     required
-                    class="w-[400px] bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 outline-none"
+                    class="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 outline-none text-sm md:text-base"
                 >
 
                 <button
                     type="submit"
-                    class="bg-blue-600 hover:bg-blue-700 px-5 py-3 rounded-xl font-semibold"
+                    class="bg-blue-600 hover:bg-blue-700 px-5 py-3 rounded-xl font-semibold w-full md:w-auto"
                 >
-                    Download
+                    Import to Library
                 </button>
 
             </form>
@@ -56,23 +66,26 @@
     </nav>
 
     <!-- DOWNLOAD LOADER -->
+
     <div
         id="loader"
-        class="hidden fixed top-5 right-5 bg-zinc-900 border border-zinc-700 px-5 py-4 rounded-2xl shadow-2xl z-50"
+        class="hidden fixed top-4 right-4 left-4 md:left-auto md:w-[320px] bg-zinc-900 border border-zinc-700 px-5 py-4 rounded-2xl shadow-2xl z-50"
     >
 
         <div class="flex items-center gap-4">
 
-            <div class="animate-spin rounded-full h-6 w-6 border-4 border-zinc-600 border-t-white"></div>
+            <div class="animate-spin rounded-full h-6 w-6 border-4 border-zinc-600 border-t-white shrink-0"></div>
 
-            <div>
-                <h2 class="font-semibold">
+            <div class="min-w-0">
+
+                <h2 class="font-semibold truncate">
                     Downloading...
                 </h2>
 
                 <p class="text-sm text-zinc-400">
                     Your songs will appear automatically
                 </p>
+
             </div>
 
         </div>
@@ -80,38 +93,42 @@
     </div>
 
     <!-- SONGS -->
+
     <div
         id="songs"
-        class="max-w-7xl mx-auto p-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-40"
+        class="p-3 md:p-5 space-y-3 pb-52 md:pb-44 max-w-7xl mx-auto"
     >
 
     </div>
 
     <!-- PLAYER -->
-    <div class="fixed bottom-0 left-0 right-0 bg-zinc-900 border-t border-zinc-800 p-4">
+
+    <div class="fixed bottom-0 left-0 right-0 bg-zinc-900 border-t border-zinc-800 p-3 md:p-4">
 
         <div class="max-w-7xl mx-auto">
 
-            <div class="flex items-center gap-4">
+            <!-- SONG INFO -->
+
+            <div class="flex items-center gap-3 md:gap-4">
 
                 <img
                     id="playerThumbnail"
                     src=""
-                    class="w-16 h-16 rounded-xl object-cover bg-zinc-800"
+                    class="w-14 h-14 md:w-16 md:h-16 rounded-xl object-cover bg-zinc-800 shrink-0"
                 >
 
-                <div class="flex-1">
+                <div class="flex-1 min-w-0">
 
                     <h2
                         id="playerTitle"
-                        class="font-semibold text-lg"
+                        class="font-semibold text-sm md:text-lg truncate"
                     >
                         No song selected
                     </h2>
 
                     <p
                         id="playerUploader"
-                        class="text-zinc-400"
+                        class="text-zinc-400 text-xs md:text-base truncate"
                     >
                         -
                     </p>
@@ -120,10 +137,12 @@
 
             </div>
 
+            <!-- AUDIO -->
+
             <audio
                 id="audioPlayer"
                 controls
-                class="w-full mt-4"
+                class="w-full mt-3 md:mt-4 h-10"
             ></audio>
 
         </div>
@@ -180,26 +199,26 @@ function renderSongs(songs) {
         const div = document.createElement("div")
 
         div.className =
-            "bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex items-center gap-4 hover:bg-zinc-800 cursor-pointer transition"
+            "bg-zinc-900 border border-zinc-800 rounded-2xl p-3 md:p-4 flex items-center gap-3 md:gap-4 hover:bg-zinc-800 cursor-pointer transition"
 
         div.innerHTML = `
             <img
                 src="${song.thumbnail_url}"
-                class="w-20 h-20 rounded-xl object-cover"
+                class="w-16 h-16 md:w-20 md:h-20 rounded-xl object-cover shrink-0"
             >
 
-            <div class="flex-1">
-                <h2 class="font-semibold text-lg">
+            <div class="flex-1 min-w-0">
+                <h2 class="font-semibold text-sm md:text-lg truncate">
                     ${song.title}
                 </h2>
 
-                <p class="text-zinc-400">
+                <p class="text-zinc-400 text-xs md:text-base truncate">
                     ${song.uploader || "Unknown"}
                 </p>
             </div>
 
             <button
-                class="bg-green-600 hover:bg-green-700 px-5 py-2 rounded-xl font-semibold"
+                class="bg-green-600 hover:bg-green-700 px-3 md:px-5 py-2 rounded-xl font-semibold text-sm md:text-base shrink-0"
             >
                 Play
             </button>
@@ -267,7 +286,6 @@ downloadForm.addEventListener("submit", async (e) => {
 
     urlInput.value = ""
 
-    // Hide after some time
     setTimeout(() => {
 
         loader.classList.add("hidden")
