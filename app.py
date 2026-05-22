@@ -2,29 +2,33 @@ from flask import Flask, render_template, request
 import yt_dlp
 import threading
 import os
+from dotenv import load_dotenv
 import psycopg2
 from minio import Minio
 from minio.error import S3Error
 from uuid import uuid4
+
+# Load environment variables from .env (if present)
+load_dotenv()
 
 # =========================================
 # CONFIG
 # =========================================
 
 POSTGRES_CONFIG = {
-    "host": "localhost",
-    "port": 5433,
-    "database": "musicEater",
-    "user": "postgres",
-    "password": "postgres"
+    "host": os.getenv("POSTGRES_HOST", "localhost"),
+    "port": int(os.getenv("POSTGRES_PORT", 5433)),
+    "database": os.getenv("POSTGRES_DB", "musicEater"),
+    "user": os.getenv("POSTGRES_USER", "postgres"),
+    "password": os.getenv("POSTGRES_PASSWORD", "postgres"),
 }
 
-MINIO_ENDPOINT = "localhost:9000"
-MINIO_ACCESS_KEY = "minioadmin"
-MINIO_SECRET_KEY = "minioadmin"
-MINIO_BUCKET = "songs"
+MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "localhost:9000")
+MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
+MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "minioadmin")
+MINIO_BUCKET = os.getenv("MINIO_BUCKET", "songs")
 
-DOWNLOAD_DIR = "downloads"
+DOWNLOAD_DIR = os.getenv("DOWNLOAD_DIR", "downloads")
 
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
