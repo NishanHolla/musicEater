@@ -101,6 +101,49 @@
 
     </div>
 
+    <!-- QUEUE SIDEBAR -->
+
+    <div id="queuePanel"
+        class="fixed right-0 top-0 h-full w-80 bg-zinc-900 border-l border-zinc-800 p-4 hidden flex flex-col z-50">
+
+        <div class="flex justify-between items-center mb-4">
+
+            <h2 class="font-bold text-lg">Queue</h2>
+
+            <button onclick="toggleQueue()"
+                    class="text-sm text-zinc-400">
+                Close
+            </button>
+
+        </div>
+
+        <div class="flex gap-2 mb-3">
+
+            <button onclick="toggleShuffle()"
+                    class="bg-zinc-800 px-3 py-1 rounded">
+                Shuffle
+            </button>
+
+            <button onclick="toggleRepeat()"
+                    class="bg-zinc-800 px-3 py-1 rounded">
+                Repeat
+            </button>
+
+        </div>
+
+        <div id="queueList"
+            class="flex-1 overflow-auto space-y-2">
+        </div>
+
+    </div>
+
+    <!-- QUEUE TOGGLE BUTTON -->
+
+    <button onclick="toggleQueue()"
+            class="fixed right-4 bottom-24 bg-blue-600 px-4 py-2 rounded-xl z-50">
+        Queue
+    </button>
+
     <!-- PLAYER -->
 
     <div class="fixed bottom-0 left-0 right-0 bg-zinc-900 border-t border-zinc-800 p-3 md:p-4">
@@ -172,6 +215,8 @@ const searchInput = document.getElementById("searchInput")
 let allSongs = []
 let queue = []
 let currentIndex = -1
+let shuffle = false
+let repeat = false
 
 // ======================================
 // LOAD SONGS
@@ -219,19 +264,32 @@ function renderSongs(songs) {
                 </p>
             </div>
 
-            <button
-                class="bg-green-600 hover:bg-green-700 px-3 md:px-5 py-2 rounded-xl font-semibold text-sm md:text-base shrink-0"
-            >
-                Play
+            <button onclick="playNext(${JSON.stringify(song).replace(/"/g, '&quot;')})"
+                    class="bg-yellow-600 px-3 py-1 rounded">
+                Play Next
+            </button>
+
+            <button onclick="addToQueue(${JSON.stringify(song).replace(/"/g, '&quot;')})"
+                    class="bg-green-600 px-3 py-1 rounded">
+                Add
             </button>
         `
 
+        // div.onclick = () => {
+
+        //     queue = allSongs
+        //     currentIndex = queue.findIndex(s => s.id === song.id)
+
+        //     playCurrent()
+        // }
+
         div.onclick = () => {
 
-            queue = allSongs
+            queue = [...allSongs]
             currentIndex = queue.findIndex(s => s.id === song.id)
 
             playCurrent()
+            renderQueue()
         }
 
         songsContainer.appendChild(div)
@@ -302,9 +360,118 @@ function playCurrent() {
     playerTitle.innerText = song.title
     playerUploader.innerText = song.uploader || "-"
     playerThumbnail.src = song.thumbnail_url
+
+    renderQueue()
+}
+
+function renderQueue() {
+
+    const list = document.getElementById("queueList")
+
+    list.innerHTML = ""
+
+    queue.forEach((song, index) => {
+
+        const div = document.createElement("div")
+
+        div.className =
+            "p-2 bg-zinc-800 rounded flex items-center justify-between cursor-move"
+
+        div.draggable = true
+
+        div.innerHTML = `
+            <div class="truncate">
+                ${song.title}
+            </div>
+
+            <div class="flex gap-2">
+
+                <button onclick="playNow(${index})">▶</button>
+                <button onclick="removeFromQueue(${index})">✕</button>
+
+            </div>
+        `
+
+        // drag events
+        div.ondragstart = (e) => {
+            e.dataTransfer.setData("index", index)
+        }
+
+        div.ondragover = (e) => e.preventDefault()
+
+        div.ondrop = (e) => {
+
+            const from = e.dataTransfer.getData("index")
+            const to = index
+
+            const moved = queue.splice(from, 1)[0]
+            queue.splice(to, 0, moved)
+
+            renderQueue()
+        }
+
+        list.appendChild(div)
+    })
+}
+
+function playNow(index) {
+    currentIndex = index
+    playCurrent()
+}
+
+function removeFromQueue(index) {
+
+    queue.splice(index, 1)
+
+    if (currentIndex >= queue.length)
+        currentIndex = queue.length - 1
+
+    renderQueue()
+}
+
+function playNext(song) {
+
+    if (currentIndex === -1) {
+        queue = [song]
+        currentIndex = 0
+    } else {
+        queue.splice(currentIndex + 1, 0, song)
+    }
+
+    renderQueue()
+}
+
+function addToQueue(song) {
+    queue.push(song)
+    renderQueue()
+}
+
+function toggleShuffle() {
+    shuffle = !shuffle
+}
+
+function toggleRepeat() {
+    repeat = !repeat
+}
+
+function toggleQueue() {
+
+    document.getElementById("queuePanel")
+        .classList.toggle("hidden")
 }
 
 player.addEventListener("ended", () => {
+
+    if (repeat) {
+        playCurrent()
+        return
+    }
+
+    if (shuffle) {
+        currentIndex = Math.floor(Math.random() * queue.length)
+        playCurrent()
+        return
+    }
 
     if (currentIndex < queue.length - 1) {
         currentIndex++
