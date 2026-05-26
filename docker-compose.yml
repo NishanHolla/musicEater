@@ -13,7 +13,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: outbox_demo
+      POSTGRES_DB: musicEater
       # Set wal_level to logical to support logical decoding for Debezium
 #      POSTGRES_INITDB_ARGS: "--wal_level=logical"
     command: ["postgres", "-c", "wal_level=logical"]
