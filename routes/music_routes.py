@@ -4,6 +4,7 @@ from flask import Blueprint, jsonify, Response, request
 
 from db import get_db_connection
 from minio_client import minio_client
+from routes.auth_routes import login_required
 
 music_bp = Blueprint("music", __name__)
 
@@ -12,6 +13,7 @@ music_bp = Blueprint("music", __name__)
 # =========================================
 
 @music_bp.route("/api/songs", methods=["GET"])
+@login_required
 def get_songs():
 
     conn = get_db_connection()
@@ -62,6 +64,7 @@ def get_songs():
 # =========================================
 
 @music_bp.route("/api/stream/<song_id>")
+@login_required
 def stream_song(song_id):
 
     conn = get_db_connection()

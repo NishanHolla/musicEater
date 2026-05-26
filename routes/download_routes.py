@@ -1,6 +1,6 @@
 # routes/download_routes.py
 
-from flask import Blueprint, render_template, request
+from flask import Blueprint, render_template, request, session
 import yt_dlp
 import threading
 import os
@@ -15,6 +15,7 @@ from config import (
 
 from db import get_db_connection
 from minio_client import minio_client
+from routes.auth_routes import login_required
 
 download_bp = Blueprint("download", __name__)
 
@@ -25,8 +26,9 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 # =========================================
 
 @download_bp.route("/")
+@login_required
 def home():
-    return render_template("index.html")
+    return render_template("index.html", user=session.get("user"))
 
 # =========================================
 # SAVE SONG
@@ -182,6 +184,7 @@ def start_download(url):
 # =========================================
 
 @download_bp.route("/download", methods=["POST"])
+@login_required
 def download():
 
     url = request.form.get("url")

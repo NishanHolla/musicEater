@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login | musicEater</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-zinc-950 text-white min-h-screen flex items-center justify-center px-4">
+    <div class="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-3xl p-8 shadow-2xl">
+        <h1 class="text-3xl font-bold mb-6 text-center">musicEater login</h1>
+
+        {% if error %}
+        <div class="mb-4 rounded-xl bg-red-600/20 border border-red-500 px-4 py-3 text-red-100">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <form action="/login" method="post" class="space-y-4">
+            <div>
+                <label for="username" class="block text-sm text-zinc-400 mb-2">Username</label>
+                <input name="username" id="username" required class="w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 text-white outline-none" />
+            </div>
+
+            <div>
+                <label for="password" class="block text-sm text-zinc-400 mb-2">Password</label>
+                <input type="password" name="password" id="password" required class="w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-4 py-3 text-white outline-none" />
+            </div>
+
+            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 rounded-2xl px-4 py-3 font-semibold">Sign in</button>
+        </form>
+
+        <p class="mt-6 text-sm text-zinc-500 text-center">Only authenticated users can import songs.</p>
+    </div>
+</body>
+</html>

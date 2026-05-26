@@ -18,4 +18,8 @@ MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
 MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "minioadmin")
 MINIO_BUCKET = os.getenv("MINIO_BUCKET", "songs")
 
+SECRET_KEY = os.getenv("FLASK_SECRET_KEY", "change-this-secret")
+AUTH_USERNAME = os.getenv("AUTH_USERNAME", "admin")
+AUTH_PASSWORD = os.getenv("AUTH_PASSWORD", "password")
+
 DOWNLOAD_DIR = os.getenv("DOWNLOAD_DIR", "temp_downloads")
