@@ -13,6 +13,7 @@ CREATE TABLE songs (
     s3_url TEXT,
 
     thumbnail_url TEXT,
+    tenant TEXT,
 
     created_at TIMESTAMP DEFAULT NOW()
 );

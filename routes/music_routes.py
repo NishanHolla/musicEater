@@ -4,7 +4,7 @@ from flask import Blueprint, jsonify, Response, request
 
 from db import get_db_connection
 from minio_client import minio_client
-from routes.auth_routes import login_required
+from routes.auth_routes import current_tenant, login_required
 
 music_bp = Blueprint("music", __name__)
 
@@ -32,8 +32,10 @@ def get_songs():
             thumbnail_url,
             created_at
         FROM songs
+        WHERE tenant = %s
         ORDER BY created_at DESC
-        """
+        """,
+        (current_tenant(),),
     )
 
     rows = cur.fetchall()
@@ -77,8 +79,9 @@ def stream_song(song_id):
             s3_key
         FROM songs
         WHERE id = %s
+          AND tenant = %s
         """,
-        (song_id,)
+        (song_id, current_tenant()),
     )
 
     row = cur.fetchone()
