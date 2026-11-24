@@ -3,3 +3,4 @@ yt-dlp
 python-dotenv
 psycopg2-binary
 minio
+spotdl

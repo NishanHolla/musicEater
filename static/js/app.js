@@ -13,6 +13,8 @@ const loader = document.getElementById("loader");
 const downloadForm = document.getElementById("downloadForm");
 
 const urlInput = document.getElementById("urlInput");
+const importStatus = document.getElementById("importStatus");
+const downloadQueue = document.getElementById("downloadQueue");
 
 const searchInput = document.getElementById("searchInput");
 
@@ -126,32 +128,89 @@ searchInput.addEventListener("input", () => {
 downloadForm.addEventListener("submit", async (e) => {
   e.preventDefault();
 
-  const url = urlInput.value;
+  const url = urlInput.value.trim();
 
   if (!url) return;
 
-  loader.classList.remove("hidden");
-
+  importStatus.textContent = "";
   const formData = new FormData();
-
   formData.append("url", url);
 
-  const response = await fetch("/download", {
-    method: "POST",
-    body: formData,
-  });
+  const submitButton = downloadForm.querySelector('button[type="submit"]');
+  submitButton.disabled = true;
+  try {
+    const response = await fetch("/download", {
+      method: "POST",
+      body: formData,
+    });
 
-  if (response.redirected) {
-    window.location.href = response.url;
+    if (response.redirected) {
+      window.location.href = response.url;
+      return;
+    }
+
+    const result = response.headers.get("content-type")?.includes("application/json")
+      ? await response.json()
+      : null;
+    if (!response.ok) {
+      importStatus.textContent = result?.error || "Could not import this link.";
+      return;
+    }
+
+    if (urlInput.value.trim() === url) urlInput.value = "";
+    if (result) {
+      importStatus.textContent = result.message;
+      loadDownloadQueue();
+      return;
+    }
+
+    loader.classList.remove("hidden");
+    setTimeout(() => {
+      loader.classList.add("hidden");
+    }, 10000);
+  } catch {
+    importStatus.textContent = "Could not reach the app. Try again.";
+  } finally {
+    submitButton.disabled = false;
+  }
+});
+
+async function loadDownloadQueue() {
+  const response = await fetch("/api/downloads");
+  if (!response.ok) return;
+
+  const jobs = await response.json();
+  downloadQueue.innerHTML = "";
+
+  if (!jobs.length) {
+    downloadQueue.innerHTML = '<p class="text-sm text-zinc-500">No imports yet.</p>';
     return;
   }
 
-  urlInput.value = "";
-
-  setTimeout(() => {
-    loader.classList.add("hidden");
-  }, 10000);
-});
+  jobs.forEach((job) => {
+    const processed = job.completed + job.skipped + job.failed;
+    const progress = job.total ? `${processed} / ${job.total}` : "Preparing";
+    const tone = job.state === "failed" ? "text-red-400" : job.state === "completed" ? "text-green-400" : "text-blue-400";
+    const div = document.createElement("div");
+    div.className = "rounded-xl border border-zinc-800 bg-zinc-900 p-3";
+    div.innerHTML = `
+      <p class="truncate text-sm font-medium">${job.source}</p>
+      <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-400">
+        <span class="${tone}">${job.message}</span>
+        <span>${progress}</span>
+        ${job.skipped ? `<span>${job.skipped} duplicate${job.skipped === 1 ? "" : "s"} skipped</span>` : ""}
+        ${job.failed ? `<span>${job.failed} failed</span>` : ""}
+      </div>
+      ${["queued", "running"].includes(job.state) ? `<button data-job-id="${job.id}" class="cancel-import mt-2 rounded bg-zinc-700 px-2 py-1 text-xs hover:bg-zinc-600">Cancel</button>` : ""}
+    `;
+    div.querySelector(".cancel-import")?.addEventListener("click", async () => {
+      const response = await fetch(`/api/downloads/${job.id}`, { method: "DELETE" });
+      if (!response.ok) return;
+      loadDownloadQueue();
+    });
+    downloadQueue.appendChild(div);
+  });
+}
 
 function playCurrent() {
   const song = queue[currentIndex];
@@ -282,12 +341,14 @@ player.addEventListener("ended", () => {
 // ======================================
 
 setInterval(loadSongs, 5000);
+setInterval(loadDownloadQueue, 2000);
 
 // ======================================
 // INITIAL LOAD
 // ======================================
 
 loadSongs();
+loadDownloadQueue();
 
 window.playNow = playNow;
 window.removeFromQueue = removeFromQueue;

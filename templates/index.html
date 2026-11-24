@@ -53,7 +53,7 @@
                 <input
                     type="text"
                     id="urlInput"
-                    placeholder="Paste YouTube URL"
+                    placeholder="Paste a YouTube or Spotify link"
                     required
                     class="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 outline-none text-sm md:text-base"
                 >
@@ -66,6 +66,7 @@
                 </button>
 
             </form>
+            <p id="importStatus" role="status" class="empty:hidden text-sm text-zinc-300"></p>
 
         </div>
 
@@ -99,6 +100,11 @@
     </div>
 
     <!-- SONGS -->
+
+    <section class="max-w-7xl mx-auto px-3 md:px-5 pt-5">
+        <h2 class="mb-3 text-lg font-semibold">Import queue</h2>
+        <div id="downloadQueue" class="space-y-2"></div>
+    </section>
 
     <div
         id="songs"

@@ -1,6 +1,11 @@
 # routes/download_routes.py
 
-from flask import Blueprint, render_template, request, session
+from flask import Blueprint, jsonify, render_template, request, session
+import json
+from pathlib import Path
+import subprocess
+import sys
+from tempfile import TemporaryDirectory
 import yt_dlp
 import threading
 import os
@@ -14,12 +19,24 @@ from config import (
 )
 
 from db import get_db_connection
+from download_jobs import (
+    attach_process,
+    cancel_job,
+    create_job,
+    get_jobs,
+    increment_job,
+    is_cancel_requested,
+    update_job,
+)
 from minio_client import minio_client
 from routes.auth_routes import current_tenant, login_required
+from spotify import parse_spotify_link
 
 download_bp = Blueprint("download", __name__)
 
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+IMPORT_SLOT = threading.Semaphore(1)
+MAX_TRACK_ATTEMPTS = 3
 
 # =========================================
 # HOME
@@ -50,6 +67,15 @@ def save_song(
 
         conn = get_db_connection()
         cur = conn.cursor()
+
+        cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (f"{tenant}:{youtube_url}",))
+        cur.execute(
+            "SELECT 1 FROM songs WHERE tenant = %s AND youtube_url = %s LIMIT 1",
+            (tenant, youtube_url),
+        )
+        if cur.fetchone():
+            conn.commit()
+            return False
 
         cur.execute(
             '''
@@ -85,11 +111,26 @@ def save_song(
 
         cur.close()
         conn.close()
+        return True
 
     except Exception as e:
 
         print(f"ERROR: PostgreSQL insert failed for '{title}'")
         print(e)
+        return False
+
+
+def song_exists(tenant, source_url):
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT 1 FROM songs WHERE tenant = %s AND youtube_url = %s LIMIT 1",
+                (tenant, source_url),
+            )
+            return cur.fetchone() is not None
+    finally:
+        conn.close()
 
 # =========================================
 # PROCESS SONG
@@ -110,7 +151,7 @@ def cleanup_local_files(video_id):
                 print(f"ERROR: could not delete {path}: {e}")
 
 
-def process_downloaded_song(info, tenant):
+def process_downloaded_song(info, tenant, job_id=None):
     title = info.get("title")
     uploader = info.get("uploader")
     duration = info.get("duration")
@@ -120,6 +161,10 @@ def process_downloaded_song(info, tenant):
     local_path = os.path.join(DOWNLOAD_DIR, f"{video_id}.mp3")
 
     try:
+        if song_exists(tenant, webpage_url):
+            if job_id:
+                increment_job(job_id, "skipped")
+            return "skipped"
         if not os.path.exists(local_path):
             print(f"ERROR: File missing {local_path}")
             return
@@ -137,7 +182,7 @@ def process_downloaded_song(info, tenant):
         s3_url = f"http://{MINIO_ENDPOINT}/{MINIO_BUCKET}/{s3_key}"
         print(f"SUCCESS: Uploaded to MinIO -> {s3_url}")
 
-        save_song(
+        saved = save_song(
             title=title,
             uploader=uploader,
             duration=duration,
@@ -148,8 +193,102 @@ def process_downloaded_song(info, tenant):
             thumbnail_url=thumbnail,
             tenant=tenant,
         )
+        if not saved:
+            minio_client.remove_object(MINIO_BUCKET, s3_key)
+            return "skipped"
+        return "completed"
     finally:
         cleanup_local_files(video_id)
+
+
+def start_spotify_download(url, tenant, job_id):
+    try:
+        update_job(job_id, state="running", message="Reading Spotify playlist")
+        with TemporaryDirectory(prefix="spotify-", dir=DOWNLOAD_DIR) as temp_dir:
+            output_dir = Path(temp_dir)
+            spotdl_env = os.environ.copy()
+            spotdl_env["USERPROFILE"] = str(output_dir)
+            process = subprocess.Popen(
+                [
+                    sys.executable, "-m", "spotdl", "download", url,
+                    "--format", "mp3",
+                    "--lyrics",
+                    "--max-retries", str(MAX_TRACK_ATTEMPTS),
+                    "--output", str(output_dir / "{track-id}.{output-ext}"),
+                    "--save-file", str(output_dir / "tracks.spotdl"),
+                    "--simple-tui",
+                ],
+                stdin=subprocess.DEVNULL,
+                env=spotdl_env,
+            )
+            attach_process(job_id, process)
+            try:
+                result_code = process.wait(timeout=3600)
+            except subprocess.TimeoutExpired:
+                process.terminate()
+                result_code = process.wait()
+
+            if is_cancel_requested(job_id):
+                return
+            if result_code:
+                print(f"spotDL exited with status {result_code} for {url}")
+
+            manifest = output_dir / "tracks.spotdl"
+            if not manifest.is_file():
+                print(f"spotDL did not produce track metadata for {url}")
+                update_job(job_id, state="failed", message="spotDL did not return any tracks")
+                return
+
+            songs = json.loads(manifest.read_text(encoding="utf-8"))
+            update_job(job_id, total=len(songs), message="Adding downloaded tracks to library")
+            for song in songs:
+                track_id = song.get("song_id")
+                audio_path = output_dir / f"{track_id}.mp3"
+                if not track_id or not audio_path.is_file() or not audio_path.stat().st_size:
+                    increment_job(job_id, "failed")
+                    continue
+
+                info = {
+                    "title": song.get("name"),
+                    "uploader": ", ".join(song.get("artists") or []) or song.get("artist"),
+                    "duration": song.get("duration"),
+                    "webpage_url": song.get("url") or url,
+                    "thumbnail": song.get("cover_url"),
+                    "id": track_id,
+                }
+                s3_key = f"{uuid4()}.mp3"
+                try:
+                    if song_exists(tenant, info["webpage_url"]):
+                        increment_job(job_id, "skipped")
+                        continue
+                    minio_client.fput_object(
+                        MINIO_BUCKET, s3_key, str(audio_path), content_type="audio/mpeg"
+                    )
+                    saved = save_song(
+                        title=info["title"],
+                        uploader=info["uploader"],
+                        duration=info["duration"],
+                        youtube_url=info["webpage_url"],
+                        s3_bucket=MINIO_BUCKET,
+                        s3_key=s3_key,
+                        s3_url=f"http://{MINIO_ENDPOINT}/{MINIO_BUCKET}/{s3_key}",
+                        thumbnail_url=info["thumbnail"],
+                        tenant=tenant,
+                    )
+                    if saved:
+                        increment_job(job_id, "completed")
+                    else:
+                        minio_client.remove_object(MINIO_BUCKET, s3_key)
+                        increment_job(job_id, "skipped")
+                except Exception as error:
+                    print(f"Could not store Spotify track {track_id}: {error}")
+                    increment_job(job_id, "failed")
+
+            update_job(job_id, state="completed", message="Import finished")
+
+    except Exception as error:
+        print(f"Spotify download failed for {url}: {error}")
+        update_job(job_id, state="failed", message="Spotify import failed")
 
 # =========================================
 # DOWNLOAD WORKER
@@ -226,36 +365,63 @@ def collect_entry_urls(url):
     return urls
 
 
-def download_one(url, tenant):
+def download_one(url, tenant, job_id):
     print(f"Downloading '{url}'...")
-    info = None
-
-    try:
-        with yt_dlp.YoutubeDL(YDL_DOWNLOAD_OPTS) as ydl:
-            info = ydl.extract_info(url, download=True)
-
-        if not info:
-            print(f"ERROR: no metadata for '{url}', skipping")
+    for attempt in range(1, MAX_TRACK_ATTEMPTS + 1):
+        if is_cancel_requested(job_id):
             return
+        info = None
+        try:
+            update_job(
+                job_id,
+                message=f"Downloading track, attempt {attempt} of {MAX_TRACK_ATTEMPTS}",
+            )
+            with yt_dlp.YoutubeDL(YDL_DOWNLOAD_OPTS) as ydl:
+                info = ydl.extract_info(url, download=True)
 
-        process_downloaded_song(info, tenant)
-    except Exception as e:
-        print(f"ERROR: skipping unavailable or failed download '{url}'")
-        print(e)
-        if info and info.get("id"):
-            cleanup_local_files(info.get("id"))
+            if not info:
+                raise RuntimeError("No metadata returned")
+
+            result = process_downloaded_song(info, tenant, job_id)
+            if result == "completed":
+                increment_job(job_id, "completed")
+            elif result == "skipped":
+                increment_job(job_id, "skipped")
+            else:
+                increment_job(job_id, "failed")
+            return
+        except Exception as error:
+            print(f"Download attempt {attempt} failed for '{url}': {error}")
+            if info and info.get("id"):
+                cleanup_local_files(info.get("id"))
+
+    increment_job(job_id, "failed")
 
 
-def start_download(url, tenant):
+def run_import(worker, url, tenant, job_id):
+    with IMPORT_SLOT:
+        if is_cancel_requested(job_id):
+            return
+        worker(url, tenant, job_id)
+
+
+def start_download(url, tenant, job_id):
     try:
+        update_job(job_id, state="running", message="Reading link")
         entry_urls = collect_entry_urls(url)
+        update_job(job_id, total=len(entry_urls), message="Downloading tracks")
         print(f"Found {len(entry_urls)} item(s) to download")
 
         for entry_url in entry_urls:
-            download_one(entry_url, tenant)
+            if is_cancel_requested(job_id):
+                return
+            download_one(entry_url, tenant, job_id)
+        if not is_cancel_requested(job_id):
+            update_job(job_id, state="completed", message="Import finished")
     except Exception as e:
         print(f"ERROR: playlist processing failed for '{url}'")
         print(e)
+        update_job(job_id, state="failed", message="Could not read this link")
 
 # =========================================
 # DOWNLOAD ROUTE
@@ -265,23 +431,48 @@ def start_download(url, tenant):
 @login_required
 def download():
 
-    url = request.form.get("url")
+    url = request.form.get("url", "").strip()
     tenant = current_tenant()
 
     if not url:
-        return "Missing URL"
+        return jsonify(error="Enter a music URL."), 400
 
     if not tenant:
         return "Missing tenant", 400
 
+    try:
+        spotify_item = parse_spotify_link(url)
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+
+    if spotify_item:
+        item_type, spotify_id = spotify_item
+        url = f"https://open.spotify.com/{item_type}/{spotify_id}"
+        worker = start_spotify_download
+    else:
+        worker = start_download
+
+    job_id = create_job(tenant, url)
+
     thread = threading.Thread(
-        target=start_download,
-        args=(url, tenant),
+        target=run_import,
+        args=(worker, url, tenant, job_id),
     )
 
     thread.start()
 
-    return render_template(
-        "success.html",
-        url=url
-    )
+    return jsonify(message="Added to the import queue.", job_id=job_id), 202
+
+
+@download_bp.route("/api/downloads", methods=["GET"])
+@login_required
+def downloads():
+    return jsonify(get_jobs(current_tenant()))
+
+
+@download_bp.route("/api/downloads/<job_id>", methods=["DELETE"])
+@login_required
+def cancel_download(job_id):
+    if not cancel_job(job_id, current_tenant()):
+        return jsonify(error="This import cannot be canceled."), 404
+    return jsonify(message="Import canceled.")

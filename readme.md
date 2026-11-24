@@ -1,6 +1,6 @@
 # musicEater
 
-musicEater is a personal YouTube music library. Paste a video or playlist URL, and the app downloads the audio, stores it, and lets you play it in the browser.
+musicEater is a personal music library for YouTube and Spotify. Paste either link type to download audio and import it into your tenant's library for local playback.
 
 Each login belongs to a **tenant**. You only see songs imported under your tenant.
 
@@ -9,12 +9,15 @@ Each login belongs to a **tenant**. You only see songs imported under your tenan
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (for Postgres and MinIO)
 - Python 3.10 or newer
 - [FFmpeg](https://ffmpeg.org/) (used by `yt-dlp` to convert audio to MP3)
+- [spotDL](https://spotdl.github.io/spotify-downloader/installation/) (used to import Spotify links through its audio search and download flow)
 
 On macOS with Homebrew:
 
 ```bash
 brew install ffmpeg
 ```
+
+Install spotDL with `python -m pip install -U spotdl`. The Spotify importer runs spotDL using the same Python environment as musicEater.
 
 ## Setup
 
@@ -80,10 +83,11 @@ To sign out, use **Logout** in the top right.
 
 - **Import a song:** paste a YouTube video URL and click **Import to Library**.
 - **Import a playlist:** paste the playlist URL the same way. Each track is saved as soon as it downloads. If one video is unavailable, the rest still import.
+- **Import from Spotify:** paste a Spotify track, album, or playlist link or URI and click **Import to Library**. spotDL reads Spotify metadata, finds matching audio, and downloads MP3 files for the library. spotDL requires FFmpeg. Read its [installation instructions](https://spotdl.github.io/spotify-downloader/installation/) if FFmpeg is not installed.
 - **Search:** type in the search box to filter your library.
 - **Play:** click a song. Use **Play Next** or **Add to Queue** to control playback order.
 
-Imports run in the background. Audio is staged briefly in `temp_downloads/`, uploaded to MinIO, then deleted locally. The library list refreshes on its own, so new tracks appear as they finish.
+YouTube imports run in the background. Audio is staged briefly in `temp_downloads/`, uploaded to MinIO, then deleted locally. The library list refreshes on its own, so new tracks appear as they finish.
 
 ## Extra tenants
 
